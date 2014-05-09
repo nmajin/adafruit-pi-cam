@@ -36,7 +36,7 @@ import time
 import yuv2rgb
 from pygame.locals import *
 from subprocess import call  
-
+import smbus
 
 # UI classes ---------------------------------------------------------------
 
@@ -225,6 +225,9 @@ saveIdx         = -1      # Image index for saving (-1 = none set yet)
 loadIdx         = -1      # Image index for loading
 scaled          = None    # pygame Surface w/last-loaded image
 
+#Address for Batterymeter I2C
+fuelAddress = 0x60
+
 # To use Dropbox uploader, must have previously run the dropbox_uploader.sh
 # script to set up the app key and such.  If this was done as the normal pi
 # user, set upconfig to the .dropbox_uploader config file in that account's
@@ -349,6 +352,13 @@ buttons = [
    Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
    Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
    Button((110, 60,100,120), bg='quit-ok', cb=quitCallback),
+   Button((  0, 10,320, 35), bg='quit')],
+
+  # Screen mode 9 is Battery information 
+  [Button((  0,188,320, 52), bg='done'   , cb=doneCallback),
+   Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
+   Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
+   Button((110, 60,100,120), bg='battery-full'),
    Button((  0, 10,320, 35), bg='quit')]
 ]
 
@@ -542,6 +552,44 @@ def showImage(n):
 	screenMode      =  0 # Photo playback
 	screenModePrior = -1 # Force screen refresh
 
+# Functions for displaying battery information. 
+
+#Define SMBus for I2C communication. 
+bus = smbus.SMBus(0)
+
+#Functions for Fuel I2C
+POWER_ON_RESET = 0x54
+SOC = 0x04
+QUICK_START = 0x40
+
+#Send command to Fuel
+def fuelPerformCommand(command, value):
+    global fuelAddress, bus
+    bus.write_byte_data(fuelAddress, command, value)
+
+#Setup and reset fuel meter
+def setupFuelMeter():
+    fuelPerformCommand(POWER_ON_RESET, 0x00)
+    fuelPerformCommand(QUICK_START, 0x00)
+
+def readBatteryLevel():
+    global fuelAddress, bus
+    percentage = 0
+    return percentage
+
+def updateBatteryMeter():
+    level = readBatteryLevel()
+    if(level > 80):
+	    buttons[9][3].setBg('battery-full')
+    elif(level > 60):
+	    buttons[9][3].setBg('battery-80')
+    elif(level > 40):
+	    buttons[9][3].setBg('battery-60')
+    elif(level > 20):
+	    buttons[9][3].setBg('battery-40')
+    else:
+	    buttons[9][3].setBg('battery-20')
+
 
 # Initialization -----------------------------------------------------------
 
@@ -593,6 +641,7 @@ for s in buttons:        # For each screenful of buttons...
 
 loadSettings() # Must come last; fiddles with Button/Icon states
 
+setupFuelMeter() # Initalise Fuel Meter PCB
 
 # Main loop ----------------------------------------------------------------
 
@@ -623,6 +672,8 @@ while(True):
     img = pygame.image.frombuffer(rgb[0:
       (sizeData[sizeMode][1][0] * sizeData[sizeMode][1][1] * 3)],
       sizeData[sizeMode][1], 'RGB')
+    if screenMode == 9: 
+        updateBatteryMeter() 
   elif screenMode < 2: # Playback mode or delete confirmation
     img = scaled       # Show last-loaded image
   else:                # 'No Photos' mode
