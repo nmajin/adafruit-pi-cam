@@ -37,6 +37,7 @@ import yuv2rgb
 from pygame.locals import *
 from subprocess import call  
 import smbus
+import struct
 
 # UI classes ---------------------------------------------------------------
 
@@ -147,6 +148,7 @@ def fxCallback(n): # Pass 1 (next effect) or -1 (prev effect)
 
 def quitCallback(): # Quit confirmation button
 	saveSettings()
+        os.system('shutdown -h now')
 	raise SystemExit
 
 def viewCallback(n): # Viewfinder buttons
@@ -220,13 +222,14 @@ storeModePrior  = -1      # Prior storage mode (for detecting changes)
 sizeMode        =  0      # Image size; default = Large
 fxMode          =  0      # Image effect; default = Normal
 isoMode         =  0      # ISO settingl default = Auto
-iconPath        = 'icons' # Subdirectory containing UI bitmaps (PNG format)
+#iconPath        = 'icons' # Subdirectory containing UI bitmaps (PNG format)
+iconPath        = '/home/pi/app/adafruit-pi-cam/icons' # Subdirectory containing UI bitmaps (PNG format)
 saveIdx         = -1      # Image index for saving (-1 = none set yet)
 loadIdx         = -1      # Image index for loading
 scaled          = None    # pygame Surface w/last-loaded image
 
 #Address for Batterymeter I2C
-fuelAddress = 0x60
+#fuelAddress = 0x36 # Commenting out for now
 
 # To use Dropbox uploader, must have previously run the dropbox_uploader.sh
 # script to set up the app key and such.  If this was done as the normal pi
@@ -299,7 +302,9 @@ buttons = [
    Button((164,188,156, 52), bg='play', cb=viewCallback, value=1),
    Button((  0,  0,320,240)           , cb=viewCallback, value=2),
    Button(( 88, 51,157,102)),  # 'Working' label (when enabled)
-   Button((148, 110,22, 22))], # Spinner (when enabled)
+   Button((148, 110,22, 22)),  # Spinner (when enabled)
+   Button((270,20,10,10), bg='battery-small-full'), # Battery status indicator
+   ],
 
   # Remaining screens are settings modes
 
@@ -358,8 +363,11 @@ buttons = [
   [Button((  0,188,320, 52), bg='done'   , cb=doneCallback),
    Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
    Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
-   Button((110, 60,100,120), bg='battery-full'),
-   Button((  0, 10,320, 35), bg='quit')]
+   Button((110, 60,100,120), bg='battery-large-full'),
+   Button((  0, 10,320, 35), bg='battery')]
+
+  # Screen mode 10 is low battery warning
+  # TODO: Creat this pop up view
 ]
 
 
@@ -554,42 +562,57 @@ def showImage(n):
 
 # Functions for displaying battery information. 
 
-#Define SMBus for I2C communication. 
-bus = smbus.SMBus(0)
+def readCapacity():
+    # 0 = /dev/i2c-0 (port I2C0)
+    # 1 = /dev/i2c-1 (port I2C1)
+    bus = smbus.SMBus(1)
+    # MAX17043
+    address = 0x36
+    read = bus.read_word_data(address, 4)
+    swapped = struct.unpack('<H', struct.pack('>H', read))[0]
+    capacity = swapped / 256
+    return capacity
 
-#Functions for Fuel I2C
-POWER_ON_RESET = 0x54
-SOC = 0x04
-QUICK_START = 0x40
-
-#Send command to Fuel
-def fuelPerformCommand(command, value):
-    global fuelAddress, bus
-    bus.write_byte_data(fuelAddress, command, value)
-
-#Setup and reset fuel meter
-def setupFuelMeter():
-    fuelPerformCommand(POWER_ON_RESET, 0x00)
-    fuelPerformCommand(QUICK_START, 0x00)
-
-def readBatteryLevel():
-    global fuelAddress, bus
-    percentage = 0
-    return percentage
+def readVoltage():
+    # 0 = /dev/i2c-0 (port I2C0)
+    # 1 = /dev/i2c-1 (port I2C1)
+    bus = smbus.SMBus(1)
+    # MAX17043
+    address = 0x36
+    read = bus.read_word_data(address, 2)
+    swapped = struct.unpack('<H', struct.pack('>H', read))[0]
+    voltage = swapped * (78.125 / 1000000)
+    return voltage
 
 def updateBatteryMeter():
-    level = readBatteryLevel()
-    if(level > 80):
-	    buttons[9][3].setBg('battery-full')
-    elif(level > 60):
-	    buttons[9][3].setBg('battery-80')
-    elif(level > 40):
-	    buttons[9][3].setBg('battery-60')
-    elif(level > 20):
-	    buttons[9][3].setBg('battery-40')
+    # TODO: Display the capacity and voltage on screen 9
+    voltage = readVoltage()
+    level = readCapacity()
+    print ("%(volt).2fV (%(cap)i%%)" % {'volt':readVoltage(), 'cap':readCapacity()})
+    if(level > 75):
+        buttons[9][3].setBg('battery-large-full')
+    elif(level > 25):
+        buttons[9][3].setBg('battery-large-75')
+    elif(level > 10):
+        buttons[9][3].setBg('battery-large-25')
+    elif(level > 5):
+        buttons[9][3].setBg('battery-large-10')
     else:
-	    buttons[9][3].setBg('battery-20')
+        buttons[9][3].setBg('battery-large-0')
 
+def updateBatteryMeterHome():
+    level = readCapacity()
+    if(level > 75):
+        buttons[3][5].setBg('battery-small-full')
+    elif(level > 25):
+        buttons[3][5].setBg('battery-small-75')
+    elif(level > 10):
+        buttons[3][5].setBg('battery-small-25')
+    elif(level > 5):
+        buttons[3][5].setBg('battery-small-10')
+    else:
+        buttons[3][5].setBg('battery-small-0')
+        
 
 # Initialization -----------------------------------------------------------
 
@@ -641,8 +664,6 @@ for s in buttons:        # For each screenful of buttons...
 
 loadSettings() # Must come last; fiddles with Button/Icon states
 
-setupFuelMeter() # Initalise Fuel Meter PCB
-
 # Main loop ----------------------------------------------------------------
 
 while(True):
@@ -672,8 +693,10 @@ while(True):
     img = pygame.image.frombuffer(rgb[0:
       (sizeData[sizeMode][1][0] * sizeData[sizeMode][1][1] * 3)],
       sizeData[sizeMode][1], 'RGB')
+    if screenMode == 3:
+        updateBatteryMeterHome()
     if screenMode == 9: 
-        updateBatteryMeter() 
+        updateBatteryMeter()
   elif screenMode < 2: # Playback mode or delete confirmation
     img = scaled       # Show last-loaded image
   else:                # 'No Photos' mode
