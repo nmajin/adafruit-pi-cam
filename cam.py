@@ -52,12 +52,12 @@ import struct
 
 class Icon:
 
-	def __init__(self, name):
-	  self.name = name
-	  try:
-	    self.bitmap = pygame.image.load(iconPath + '/' + name + '.png')
-	  except:
-	    pass
+    def __init__(self, name):
+        self.name = name
+        try:
+            self.bitmap = pygame.image.load(iconPath + '/' + name + '.png')
+        except:
+            pass
 
 # Button is a simple tappable screen region.  Each has:
 #  - bounding rect ((X,Y,W,H) in pixels)
@@ -77,60 +77,72 @@ class Icon:
 
 class Button:
 
-	def __init__(self, rect, **kwargs):
-	  self.rect     = rect # Bounds
-	  self.color    = None # Background fill color, if any
-	  self.iconBg   = None # Background Icon (atop color fill)
-	  self.iconFg   = None # Foreground Icon (atop background)
-	  self.bg       = None # Background Icon name
-	  self.fg       = None # Foreground Icon name
-	  self.callback = None # Callback function
-	  self.value    = None # Value passed to callback
-	  for key, value in kwargs.iteritems():
+    def __init__(self, rect, **kwargs):
+        self.rect     = rect # Bounds
+	self.color    = None # Background fill color, if any
+        self.iconBg   = None # Background Icon (atop color fill)
+	self.iconFg   = None # Foreground Icon (atop background)
+	self.bg       = None # Background Icon name
+	self.fg       = None # Foreground Icon name
+	self.callback = None # Callback function
+	self.value    = None # Value passed to callback
+        self.text       = None
+        self.renderText = None
+	for key, value in kwargs.iteritems():
 	    if   key == 'color': self.color    = value
 	    elif key == 'bg'   : self.bg       = value
 	    elif key == 'fg'   : self.fg       = value
 	    elif key == 'cb'   : self.callback = value
 	    elif key == 'value': self.value    = value
+            elif key == 'text' : self.text     = value
 
-	def selected(self, pos):
-	  x1 = self.rect[0]
-	  y1 = self.rect[1]
-	  x2 = x1 + self.rect[2] - 1
-	  y2 = y1 + self.rect[3] - 1
-	  if ((pos[0] >= x1) and (pos[0] <= x2) and
-	      (pos[1] >= y1) and (pos[1] <= y2)):
+    def selected(self, pos):
+        x1 = self.rect[0]
+	y1 = self.rect[1]
+	x2 = x1 + self.rect[2] - 1
+	y2 = y1 + self.rect[3] - 1
+	if ((pos[0] >= x1) and (pos[0] <= x2) and (pos[1] >= y1) and (pos[1] <= y2)):
 	    if self.callback:
-	      if self.value is None: self.callback()
-	      else:                  self.callback(self.value)
+	        if self.value is None:
+                    self.callback()
+	        else:
+                    self.callback(self.value)
 	    return True
-	  return False
+	return False
 
-	def draw(self, screen):
-	  if self.color:
+    def draw(self, screen):
+	if self.color:
 	    screen.fill(self.color, self.rect)
-	  if self.iconBg:
+        if self.iconBg:
 	    screen.blit(self.iconBg.bitmap,
-	      (self.rect[0]+(self.rect[2]-self.iconBg.bitmap.get_width())/2,
-	       self.rect[1]+(self.rect[3]-self.iconBg.bitmap.get_height())/2))
-	  if self.iconFg:
+	        (self.rect[0]+(self.rect[2]-self.iconBg.bitmap.get_width())/2,
+	         self.rect[1]+(self.rect[3]-self.iconBg.bitmap.get_height())/2))
+	if self.iconFg:
 	    screen.blit(self.iconFg.bitmap,
-	      (self.rect[0]+(self.rect[2]-self.iconFg.bitmap.get_width())/2,
-	       self.rect[1]+(self.rect[3]-self.iconFg.bitmap.get_height())/2))
+	        (self.rect[0]+(self.rect[2]-self.iconFg.bitmap.get_width())/2,
+	         self.rect[1]+(self.rect[3]-self.iconFg.bitmap.get_height())/2))
+        if self.text:
+            pygame.font.init()
+            screen.blit(self.renderText,
+                (self.rect[0]+(self.rect[2]-self.renderText.get_width())/2,
+                 self.rect[1]+(self.rect[3]-self.renderText.get_height())/2))
 
-	def setBg(self, name):
-	  if name is None:
+    def setBg(self, name):
+        if name is None:
 	    self.iconBg = None
-	  else:
+	else:
 	    for i in icons:
-	      if name == i.name:
-	        self.iconBg = i
-	        break
+	        if name == i.name:
+	            self.iconBg = i
+	            break
 
+    def setTxt(self, name):
+        self.text = name
+        font = pygame.font.SysFont("Arial",20)
+        self.renderText=font.render(self.text, True, (255,255,255))
 
 # UI callbacks -------------------------------------------------------------
-# These are defined before globals because they're referenced by items in
-# the global buttons[] list.
+# These are defined before globals because they're referenced by items in the global buttons[] list.
 
 def isoCallback(n): # Pass 1 (next ISO) or -1 (prev ISO)
 	global isoMode
@@ -227,9 +239,8 @@ iconPath        = '/home/pi/app/adafruit-pi-cam/icons' # Subdirectory containing
 saveIdx         = -1      # Image index for saving (-1 = none set yet)
 loadIdx         = -1      # Image index for loading
 scaled          = None    # pygame Surface w/last-loaded image
-
-#Address for Batterymeter I2C
-#fuelAddress = 0x36 # Commenting out for now
+bus = smbus.SMBus(1) # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
+fuelAddress = 0x36 # MAX17043
 
 # To use Dropbox uploader, must have previously run the dropbox_uploader.sh
 # script to set up the app key and such.  If this was done as the normal pi
@@ -306,8 +317,6 @@ buttons = [
    Button((270,20,10,10), bg='battery-small-full'), # Battery status indicator
    ],
 
-  # Remaining screens are settings modes
-
   # Screen mode 4 is storage settings
   [Button((  0,188,320, 52), bg='done', cb=doneCallback),
    Button((  0,  0, 80, 52), bg='prev', cb=settingCallback, value=-1),
@@ -364,10 +373,9 @@ buttons = [
    Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
    Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
    Button((110, 60,100,120), bg='battery-large-full'),
+   Button((40, 90,10,10), text='Capacity: -'), # Testing text to show capacity
+   Button((265, 90,10,10), text='Voltage: -'), # Testing text to show voltage
    Button((  0, 10,320, 35), bg='battery')]
-
-  # Screen mode 10 is low battery warning
-  # TODO: Creat this pop up view
 ]
 
 
@@ -562,33 +570,34 @@ def showImage(n):
 
 # Functions for displaying battery information. 
 
+# Setup and reset fuel meter
+def setupFuelMeter():
+    global bus, fuelAddress
+    POWER_ON_RESET = 0x54
+    QUICK_START = 0x40
+    bus.write_byte_data(fuelAddress, POWER_ON_RESET, 0x00)
+    bus.write_byte_data(fuelAddress, QUICK_START, 0x00)
+
 def readCapacity():
-    # 0 = /dev/i2c-0 (port I2C0)
-    # 1 = /dev/i2c-1 (port I2C1)
-    bus = smbus.SMBus(1)
-    # MAX17043
-    address = 0x36
-    read = bus.read_word_data(address, 4)
+    global bus, fuelAddress
+    read = bus.read_word_data(fuelAddress, 4)
     swapped = struct.unpack('<H', struct.pack('>H', read))[0]
     capacity = swapped / 256
     return capacity
 
 def readVoltage():
-    # 0 = /dev/i2c-0 (port I2C0)
-    # 1 = /dev/i2c-1 (port I2C1)
-    bus = smbus.SMBus(1)
-    # MAX17043
-    address = 0x36
-    read = bus.read_word_data(address, 2)
+    global bus, fuelAddress
+    read = bus.read_word_data(fuelAddress, 2)
     swapped = struct.unpack('<H', struct.pack('>H', read))[0]
     voltage = swapped * (78.125 / 1000000)
     return voltage
 
 def updateBatteryMeter():
-    # TODO: Display the capacity and voltage on screen 9
     voltage = readVoltage()
     level = readCapacity()
-    print ("%(volt).2fV (%(cap)i%%)" % {'volt':readVoltage(), 'cap':readCapacity()})
+    #print ("%(volt).2fV (%(cap)i%%)" % {'volt':readVoltage(), 'cap':readCapacity()})
+    buttons[9][4].setTxt("Capacity: %(level)i%%" % {'level':level})
+    buttons[9][5].setTxt("Voltage: %(voltage).2fV" % {'voltage':voltage})
     if(level > 75):
         buttons[9][3].setBg('battery-large-full')
     elif(level > 25):
@@ -663,6 +672,7 @@ for s in buttons:        # For each screenful of buttons...
         b.fg     = None
 
 loadSettings() # Must come last; fiddles with Button/Icon states
+setupFuelMeter() # Initalise Fuel Meter PCB
 
 # Main loop ----------------------------------------------------------------
 
