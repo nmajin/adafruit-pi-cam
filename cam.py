@@ -136,9 +136,9 @@ class Button:
 	            self.iconBg = i
 	            break
 
-    def setTxt(self, name):
+    def setTxt(self, name, size=20):
         self.text = name
-        font = pygame.font.SysFont("Arial",20)
+        font = pygame.font.SysFont("Arial", size)
         self.renderText=font.render(self.text, True, (255,255,255))
 
 # UI callbacks -------------------------------------------------------------
@@ -178,6 +178,7 @@ def viewCallback(n): # Viewfinder buttons
 	    if r: showImage(r[1]) # Show last image in directory
 	    else: screenMode = 2  # No images
 	else: # Rest of screen = shutter
+          time.sleep(3) # Pause for 3 seconds
 	  takePicture()
 
 def doneCallback(): # Exit settings
@@ -314,7 +315,9 @@ buttons = [
    Button((  0,  0,320,240)           , cb=viewCallback, value=2),
    Button(( 88, 51,157,102)),  # 'Working' label (when enabled)
    Button((148, 110,22, 22)),  # Spinner (when enabled)
-   Button((270,20,10,10), bg='battery-small-full'), # Battery status indicator
+   Button((148, 90,22, 22)),  # Delay (when enabled)
+   Button((270,20,10,10)), # Battery status indicator
+   #Button((270,20,10,10), bg='battery-small-full'), # Battery status indicator
    ],
 
   # Screen mode 4 is storage settings
@@ -373,8 +376,8 @@ buttons = [
    Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
    Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
    Button((110, 60,100,120), bg='battery-large-full'),
-   Button((40, 90,10,10), text='Capacity: -'), # Testing text to show capacity
-   Button((265, 90,10,10), text='Voltage: -'), # Testing text to show voltage
+   Button((40, 90,10,10)), # Capacity
+   Button((265, 90,10,10)), # Voltage
    Button((  0, 10,320, 35), bg='battery')]
 ]
 
@@ -612,15 +615,15 @@ def updateBatteryMeter():
 def updateBatteryMeterHome():
     level = readCapacity()
     if(level > 75):
-        buttons[3][5].setBg('battery-small-full')
+        buttons[3][6].setBg('battery-small-full')
     elif(level > 25):
-        buttons[3][5].setBg('battery-small-75')
+        buttons[3][6].setBg('battery-small-75')
     elif(level > 10):
-        buttons[3][5].setBg('battery-small-25')
+        buttons[3][6].setBg('battery-small-25')
     elif(level > 5):
-        buttons[3][5].setBg('battery-small-10')
+        buttons[3][6].setBg('battery-small-10')
     else:
-        buttons[3][5].setBg('battery-small-0')
+        buttons[3][6].setBg('battery-small-0')
         
 
 # Initialization -----------------------------------------------------------
