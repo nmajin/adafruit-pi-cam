@@ -38,6 +38,7 @@ from pygame.locals import *
 from subprocess import call  
 import smbus
 import struct
+import socket
 
 # UI classes ---------------------------------------------------------------
 
@@ -178,7 +179,7 @@ def viewCallback(n): # Viewfinder buttons
 	    if r: showImage(r[1]) # Show last image in directory
 	    else: screenMode = 2  # No images
 	else: # Rest of screen = shutter
-          time.sleep(3) # Pause for 3 seconds
+          time.sleep(3) # Pause for 3 seconds before taking picture to allow camera to stop shaking
 	  takePicture()
 
 def doneCallback(): # Exit settings
@@ -315,9 +316,7 @@ buttons = [
    Button((  0,  0,320,240)           , cb=viewCallback, value=2),
    Button(( 88, 51,157,102)),  # 'Working' label (when enabled)
    Button((148, 110,22, 22)),  # Spinner (when enabled)
-   Button((148, 90,22, 22)),  # Delay (when enabled)
    Button((270,20,10,10)), # Battery status indicator
-   #Button((270,20,10,10), bg='battery-small-full'), # Battery status indicator
    ],
 
   # Screen mode 4 is storage settings
@@ -371,14 +370,22 @@ buttons = [
    Button((110, 60,100,120), bg='quit-ok', cb=quitCallback),
    Button((  0, 10,320, 35), bg='quit')],
 
-  # Screen mode 9 is Battery information 
+  # Screen mode 9 is Battery information
   [Button((  0,188,320, 52), bg='done'   , cb=doneCallback),
    Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
    Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
    Button((110, 60,100,120), bg='battery-large-full'),
    Button((40, 90,10,10)), # Capacity
    Button((265, 90,10,10)), # Voltage
-   Button((  0, 10,320, 35), bg='battery')]
+   Button((  0, 10,320, 35), bg='battery')],
+
+  # Screen mode 10 is Network information
+  [Button((  0,188,320, 52), bg='done'   , cb=doneCallback),
+   Button((  0,  0, 80, 52), bg='prev'   , cb=settingCallback, value=-1),
+   Button((240,  0, 80, 52), bg='next'   , cb=settingCallback, value= 1),
+   Button((109, 90, 100,10)), # Hostname
+   Button((57, 110, 100,10)), # IP
+   Button((  0, 10,320, 35), bg='network')]
 ]
 
 
@@ -615,16 +622,21 @@ def updateBatteryMeter():
 def updateBatteryMeterHome():
     level = readCapacity()
     if(level > 75):
-        buttons[3][6].setBg('battery-small-full')
+        buttons[3][5].setBg('battery-small-full')
     elif(level > 25):
-        buttons[3][6].setBg('battery-small-75')
+        buttons[3][5].setBg('battery-small-75')
     elif(level > 10):
-        buttons[3][6].setBg('battery-small-25')
+        buttons[3][5].setBg('battery-small-25')
     elif(level > 5):
-        buttons[3][6].setBg('battery-small-10')
+        buttons[3][5].setBg('battery-small-10')
     else:
-        buttons[3][6].setBg('battery-small-0')
-        
+        buttons[3][5].setBg('battery-small-0')
+
+def updateNetworkInfo():
+    ip = os.popen("ifconfig | grep -w inet | grep -v 127.0.0.1 | awk '{print $2}' | cut -d ':' -f 2").read().rstrip('\n')
+    hostname = os.popen("hostname").read().rstrip('\n')
+    buttons[10][3].setTxt("Hostname: %s" % hostname, 25)
+    buttons[10][4].setTxt('IP: %s' % ip, 25)
 
 # Initialization -----------------------------------------------------------
 
@@ -708,8 +720,10 @@ while(True):
       sizeData[sizeMode][1], 'RGB')
     if screenMode == 3:
         updateBatteryMeterHome()
-    if screenMode == 9: 
+    if screenMode == 9:
         updateBatteryMeter()
+    if screenMode == 10:
+        updateNetworkInfo()
   elif screenMode < 2: # Playback mode or delete confirmation
     img = scaled       # Show last-loaded image
   else:                # 'No Photos' mode
